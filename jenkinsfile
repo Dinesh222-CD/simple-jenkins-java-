@@ -1,0 +1,125 @@
+pipeline {
+    agent any
+    
+    tools {
+        maven 'Maven-3.8.1' // Make sure this matches your Jenkins Maven installation name
+        jdk 'JDK-11'        // Make sure this matches your Jenkins JDK installation name
+    }
+    
+    environment {
+        MAVEN_OPTS = '-Xmx1024m'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code...'
+                checkout scm
+            }
+        }
+        
+        stage('Build Info') {
+            steps {
+                echo 'Displaying build information...'
+                sh 'java -version'
+                sh 'mvn -version'
+            }
+        }
+        
+        stage('Clean & Compile') {
+            steps {
+                echo 'Cleaning and compiling the project...'
+                sh 'mvn clean compile'
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                echo 'Running unit tests...'
+                sh 'mvn test'
+            }
+            post {
+                always {
+                    // Publish test results
+                    junit 'target/surefire-reports/**/*.xml'
+                    
+                    // Archive test results
+                    archiveArtifacts artifacts: 'target/surefire-reports/**/*', allowEmptyArchive: true
+                }
+            }
+        }
+        
+        stage('Package') {
+            steps {
+                echo 'Packaging the application...'
+                sh 'mvn package -DskipTests'
+            }
+            post {
+                success {
+                    // Archive the built artifacts
+                    archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: false
+                }
+            }
+        }
+        
+        stage('Integration Tests') {
+            steps {
+                echo 'Running integration tests...'
+                sh 'mvn verify -DskipUnitTests'
+            }
+        }
+        
+        stage('Code Quality Check') {
+            steps {
+                echo 'Running code quality checks...'
+                // You can add SonarQube or other quality tools here
+                sh 'mvn checkstyle:check || true'
+            }
+        }
+        
+        stage('Deploy to Dev') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                echo 'Deploying to development environment...'
+                // Add your deployment commands here
+                sh 'echo "Deploying to dev environment"'
+            }
+        }
+        
+        stage('Deploy to Staging') {
+            when {
+                branch 'master'
+            }
+            steps {
+                echo 'Deploying to staging environment...'
+                // Add your deployment commands here
+                sh 'echo "Deploying to staging environment"'
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Pipeline completed!'
+            // Clean up workspace
+            cleanWs()
+        }
+        
+        success {
+            echo 'Pipeline succeeded!'
+            // You can add notifications here (email, Slack, etc.)
+        }
+        
+        failure {
+            echo 'Pipeline failed!'
+            // You can add failure notifications here
+        }
+        
+        unstable {
+            echo 'Pipeline is unstable!'
+            // Handle unstable builds
+        }
+    }
+}
